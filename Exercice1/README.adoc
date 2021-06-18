@@ -1,0 +1,114 @@
+= Hack The Shift - Exercice I
+Héctor Esteban Cabezos <hesteban@redhat.com>
+v1.0, 2021-06
+// Create TOC wherever needed
+:toc: macro
+:sectanchors:
+:sectnumlevels: 2
+:sectnums: 
+:source-highlighter: pygments
+:imagesdir: images
+// Start: Enable admonition icons
+ifdef::env-github[]
+:tip-caption: :bulb:
+:note-caption: :information_source:
+:important-caption: :heavy_exclamation_mark:
+:caution-caption: :fire:
+:warning-caption: :warning:
+endif::[]
+ifndef::env-github[]
+:icons: font
+endif::[]
+// End: Enable admonition icons
+
+// Create the Table of contents here
+toc::[]
+
+== Scenario
+
+The application **lab1** inside the **lab1** project is running but it looks like it can't access the needed data.
+The storage backend is GlusterFS managed by the server called **gluster**.
+The content is located on **gluster** under /data/glusterfs/training1/brick and is called **challenge**.
+
+Checking the application logs returns this:
+
+[source,bash]
+----
+[root@ocplab ~]# curl http://$(oc get svc lab1 --template '{{.spec.clusterIP}}'):8080
+open /data/challenge: no such file or directory
+----
+
+== Success Criteria
+
+* **lab1** is running in project **lab1**
+* **lab1** is using the pre-configured GlusterFS backend storage
+* **/data** inside **lab1** is mounted on the pre-configured GlusterFS backend storage
+
+== What has been done
+
+The physical volume is not attached to the physical volumes provided. In order to attach them in the `DeploymentConfig` `lab1` add:
+
+[source,bash]
+----
+    spec:
+      containers:
+      - image: 172.30.166.0:5000/lab1/lab1@sha256:f689807025cce81cb1fe575d3cc3a5160a10aed4abc31e830b0e8e3958253bcb
+        imagePullPolicy: Always
+        name: lab1
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        volumeMounts:
+        - mountPath: /data
+          name: gluster-vol1
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      securityContext:
+        runAsUser: 592
+        seLinuxOptions:
+          level: s0:c25,c10
+      serviceAccount: sa-with-anyuid
+      serviceAccountName: sa-with-anyuid
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: gluster-vol1
+        persistentVolumeClaim:
+          claimName: gluster-claim
+----
+
+Apart from adding the PersistentVolumeClaim **gluster-claim**, we have created a new SA, which has been configured to be able to run as any user and group: 
+
+[source,bash]
+----
+$ oc create sa sa-with-anyuid
+$ oc adm policy add-scc-to-user anyuid -z sa-with-anyuid
+----
+
+Once the SA is created we can can include it in the `DeploymentConfig`, and select the specific **user** that will be runned in the container, in our case the 592. 
+
+[source,bash]
+----
+sh-4.2$ ls -la /
+total 8
+...
+drwxrwx---.   4  592  590 4096 Aug  1  2017 data
+...
+----
+
+As it can be seen, it is necessary to specify the UID that will run in the container, because the `/data` folder just grants permissions to UID 592 and group 590. 
+To check with which user the pod is runned do:
+
+[source,bash]
+----
+# oc get pod -o jsonpath='{range .items[*]}{@.metadata.name}{" runAsUser: "}{@.spec.containers[*].securityContext.runAsUser}{" fsGroup: "}{@.spec.securityContext.fsGroup}{" seLinuxOptions: "}{@.spec.securityContext.seLinuxOptions.level}{"\n"}{end}'
+lab1-1-build runAsUser:  fsGroup:  seLinuxOptions: 
+lab1-4-fnlbp runAsUser: 592 fsGroup:  seLinuxOptions: s0:c8,c2
+lab1-5-deploy runAsUser: 1.00006e+09 fsGroup: 1.00006e+09 seLinuxOptions: s0:c8,c2
+----
+
+Once all these changes have been implemented, we are able to finally access the `curl` call.
+
+[source,bash]
+----
+# curl http://$(oc get svc lab1 --template '{{.spec.clusterIP}}'):8080
+EXCESSIVE96HEADER
+----
