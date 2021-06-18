@@ -112,3 +112,15 @@ Once all these changes have been implemented, we are able to finally access the 
 # curl http://$(oc get svc lab1 --template '{{.spec.clusterIP}}'):8080
 EXCESSIVE96HEADER
 ----
+
+== Bibliography
+
+=== Modify UIDs and SCC
+
+* https://www.openshift.com/blog/a-guide-to-openshift-and-uids 
+* https://docs.openshift.com/container-platform/3.5/install_config/persistent_storage/pod_security_context.html 
+
+=== Persistent Volumes
+
+* https://docs.openshift.com/container-platform/3.5/dev_guide/volumes.html
+* https://docs.openshift.com/container-platform/3.5/dev_guide/persistent_volumes.html
