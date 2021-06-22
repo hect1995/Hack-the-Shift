@@ -1,0 +1,78 @@
+= Hack The Shift - Exercice II
+Héctor Esteban Cabezos <hesteban@redhat.com>
+v1.0, 2021-06
+// Create TOC wherever needed
+:toc: macro
+:sectanchors:
+:sectnumlevels: 2
+:sectnums: 
+:source-highlighter: pygments
+:imagesdir: images
+// Start: Enable admonition icons
+ifdef::env-github[]
+:tip-caption: :bulb:
+:note-caption: :information_source:
+:important-caption: :heavy_exclamation_mark:
+:caution-caption: :fire:
+:warning-caption: :warning:
+endif::[]
+ifndef::env-github[]
+:icons: font
+endif::[]
+// End: Enable admonition icons
+
+// Create the Table of contents here
+toc::[]
+
+== Scenario
+
+The etcd cluster is encountering some issues with one of the nodes. The logs on etcd1.example.com are showing the following:
+
+[source,bash]
+----
+etcd1.example.com etcd[1007]: cannot get the version of member b9a10c6a6cd7c960 (Get https://10.0.2.17:2380/version: dial tcp 10.0.2.17:2380: getsockopt: no route to host)
+etcd1.example.com etcd[1007]: health check for peer b9a10c6a6cd7c960 could not connect: dial tcp 10.0.2.17:2380: i/o timeout
+etcd1.example.com etcd[1007]: failed to reach the peerURL(https://10.0.2.17:2380) of member b9a10c6a6cd7c960 (Get https://10.0.2.17:2380/version: dial tcp 10.0.2.17:2380: i/o timeout)
+----
+
+However, the cluster-health check doesn't show any errors:
+
+[source,bash]
+----
+member 8d21a1be0fb5f806 is healthy: got healthy result from https://10.0.2.15:2379
+member 9f5fdf6de278be6c is healthy: got healthy result from https://10.0.2.14:2379
+member b9a10c6a6cd7c960 is healthy: got healthy result from https://10.0.2.16:2379
+cluster is healthy
+----
+
+== Success Criteria
+
+* The cluster can connect with all its nodes backend storage
+
+== What has been done
+
+The reason why the cluster was giving errors was because the `etcd3.example.com` member hat an erronous `peerURLs` set in both `etcd{1,2}.example.com`. +
+I noticed the issue by doing: 
+
+[source,bash]
+----
+# etcdctl -C ${ETCD_LISTEN_CLIENT_URLS} --ca-file=/etc/etcd/ca.crt --cert-file=/etc/etcd/peer.crt --key-file=/etc/etcd/peer.key member list
+2021-06-22 03:22:28.660268 I | warning: ignoring ServerName for user-provided CA for backwards compatibility is deprecated
+8d21a1be0fb5f806: name=etcd2.example.com peerURLs=https://10.0.2.15:2380 clientURLs=https://10.0.2.15:2379 isLeader=true
+9f5fdf6de278be6c: name=etcd1.example.com peerURLs=https://10.0.2.14:2380 clientURLs=https://10.0.2.14:2379 isLeader=false
+b9a10c6a6cd7c960: name=etcd3.example.com peerURLs=https://10.0.2.17:2380 clientURLs=https://10.0.2.16:2379 isLeader=false
+----
+
+In order to change it we need to: 
+
+[source,bash]
+----
+# etcdctl -C ${ETCD_LISTEN_CLIENT_URLS} --ca-file=/etc/etcd/ca.crt --cert-file=/etc/etcd/peer.crt --key-file=/etc/etcd/peer.key member update b9a10c6a6cd7c960 https://10.0.2.16:2380
+2021-06-22 03:23:19.421045 I | warning: ignoring ServerName for user-provided CA for backwards compatibility is deprecated
+Updated member with ID b9a10c6a6cd7c960 in cluster
+----
+
+
+== Bibliography
+
+* https://etcd.io/docs/v2.3/runtime-configuration/
