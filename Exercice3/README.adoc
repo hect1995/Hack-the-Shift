@@ -1,0 +1,76 @@
+= Hack The Shift - Exercice III
+Héctor Esteban Cabezos <hesteban@redhat.com>
+v1.0, 2021-06
+// Create TOC wherever needed
+:toc: macro
+:sectanchors:
+:sectnumlevels: 2
+:sectnums: 
+:source-highlighter: pygments
+:imagesdir: images
+// Start: Enable admonition icons
+ifdef::env-github[]
+:tip-caption: :bulb:
+:note-caption: :information_source:
+:important-caption: :heavy_exclamation_mark:
+:caution-caption: :fire:
+:warning-caption: :warning:
+endif::[]
+ifndef::env-github[]
+:icons: font
+endif::[]
+// End: Enable admonition icons
+
+// Create the Table of contents here
+toc::[]
+
+== Scenario
+
+There seems to be an issue with **node2.example.com**:
+
+
+[source,bash]
+----
+[root@master ~]# oc get nodes
+NAME                 STATUS                     AGE
+master.example.com   Ready,SchedulingDisabled   38m
+node1.example.com    Ready                      38m
+node2.example.com    NotReady                   38m
+----
+
+When looking at the logs of node2.example.com, it shows the following:
+
+[source,bash]
+----
+03:52:01.963852    1526 start_node.go:250] Reading node configuration from /etc/origin/node/node-config.yaml
+03:52:02 node2.example.com atomic-openshift-node[1526]: F0911 03:52:02.027290    1526 start_node.go:139] cannot fetch "default" cluster network:
+the server has asked for the client to provide credentials
+03:52:02 node2.example.com systemd[1]: atomic-openshift-node.service: main process exited, code=exited, status=255/n/a
+----
+
+== Success Criteria
+
+* The issue on __node2__, indicated in the log snippet here, is resolved
+* __node2.example.com__ has a **Ready** status when running oc get nodes
+
+== What has been done
+
+First of all the status of all the certificates is checked by: 
+
+[source,bash]
+----
+# ansible-playbook -v -i hosts /usr/share/ansible/openshift-ansible/playbooks/certificate_expiry/easy-mode.yaml
+----
+
+which by default outputs in JSON format `/tmp/cert-expiry-report.json` all certificates related to Openshift. +
+There it can be seen how some certificates from `node2.example.com` are expired. ANother playbook can be used to redeploy those certificates: 
+
+[source,bash]
+----
+# ansible-playbook -i hosts /usr/share/ansible/openshift-ansible/playbooks/byo/openshift-cluster/redeploy-node-certificates.yml
+----
+
+
+== Bibliography
+
+* https://docs.openshift.com/container-platform/3.5/install_config/redeploying_certificates.html
