@@ -1,0 +1,101 @@
+= Hack The Shift - Exercice V
+Héctor Esteban Cabezos <hesteban@redhat.com>
+v1.0, 2021-06
+// Create TOC wherever needed
+:toc: macro
+:sectanchors:
+:sectnumlevels: 2
+:sectnums: 
+:source-highlighter: pygments
+:imagesdir: images
+// Start: Enable admonition icons
+ifdef::env-github[]
+:tip-caption: :bulb:
+:note-caption: :information_source:
+:important-caption: :heavy_exclamation_mark:
+:caution-caption: :fire:
+:warning-caption: :warning:
+endif::[]
+ifndef::env-github[]
+:icons: font
+endif::[]
+// End: Enable admonition icons
+
+// Create the Table of contents here
+toc::[]
+
+== Scenario
+
+None of the pods are running, and and they are locked in **Pending** status:
+
+[source,bash]
+----
+[root@master ~]# oc project lab5
+Already on project "lab5" on server "https://master.example.com:8443".
+[root@master ~]# oc get pods
+NAME           READY     STATUS    RESTARTS   AGE
+lab5-2-nwm0d   0/1       Pending   0          3m
+----
+
+Checking the logs revealed the following:
+
+[source,bash]
+----
+Jul 10 11:27:23 master atomic-openshift-master: I0710 11:27:23.747244    1002 scheduler.go:97] Failed to schedule pod: lab5/lab5-2-nwm0d
+Jul 10 11:27:23 master atomic-openshift-master: E0710 11:27:23.747262    1002 factory.go:583] Error scheduling lab5 lab5-2-nwm0d: pod (lab5-2-nwm0d) failed to fit in any node
+Jul 10 11:27:23 master atomic-openshift-master: I0710 11:27:23.747338    1002 factory.go:660] Updating pod condition for lab5/lab5-2-nwm0d to (PodScheduled==False)
+----
+
+However, the nodes are ready for scheduling:
+
+[source,bash]
+----
+[root@master ~]# oc get nodes
+NAME                 STATUS                     AGE
+master.example.com   Ready,SchedulingDisabled   313d
+node1.example.com    Ready                      313d
+node2.example.com    Ready                      313d
+----
+
+== Success Criteria
+
+* Pods from **default** and **lab5** namespaces are being scheduled on **node1.example.com** or **node2.example.com**
+* The issue is resolved cluster-wide instead of project-wide by using a node-selector annotation
+
+== What has been done
+
+In order to see which are the labels that the pods that are failing have we do: 
+
+[source,bash]
+----
+[root@master ~]# oc describe pod <pod_name>
+...
+  nodeSelector:
+    region: cloud
+...
+
+----
+
+Then we need to enforce this selector into the nodes: 
+
+[source,bash]
+----
+[root@master ~]# oc edit node <node_name>
+apiVersion: v1
+kind: Node
+metadata:
+  creationTimestamp: 2017-08-31T13:34:54Z
+  labels:
+    beta.kubernetes.io/arch: amd64
+    beta.kubernetes.io/os: linux
+    kubernetes.io/hostname: node1.example.com
+    region: cloud
+----
+
+Once we delete the pods that are failling, the new ones are scheduled.
+
+
+== Bibliography
+
+* https://docs.openshift.com/container-platform/3.11/admin_guide/scheduling/scheduler.html
+* https://docs.openshift.com/container-platform/3.11/admin_guide/scheduling/pod_placement.html#constraining-pod-placement-nodeselector
