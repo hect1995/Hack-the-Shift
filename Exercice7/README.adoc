@@ -1,0 +1,100 @@
+= Hack The Shift - Exercice VII
+Héctor Esteban Cabezos <hesteban@redhat.com>
+v1.0, 2021-06
+// Create TOC wherever needed
+:toc: macro
+:sectanchors:
+:sectnumlevels: 2
+:sectnums: 
+:source-highlighter: pygments
+:imagesdir: images
+// Start: Enable admonition icons
+ifdef::env-github[]
+:tip-caption: :bulb:
+:note-caption: :information_source:
+:important-caption: :heavy_exclamation_mark:
+:caution-caption: :fire:
+:warning-caption: :warning:
+endif::[]
+ifndef::env-github[]
+:icons: font
+endif::[]
+// End: Enable admonition icons
+
+// Create the Table of contents here
+toc::[]
+
+== Scenario
+
+During the build process, you encountered the following error:
+
+[source,bash]
+----
+[root@master ~]# oc logs -f bc/lab7
+Pushing image 172.30.167.105:5000/lab7/lab7:latest ...
+Warning: Push failed, retrying in 5s ...
+Warning: Push failed, retrying in 5s ...
+Warning: Push failed, retrying in 5s ...
+Warning: Push failed, retrying in 5s ...
+Warning: Push failed, retrying in 5s ...
+Warning: Push failed, retrying in 5s ...
+Warning: Push failed, retrying in 5s ...
+error: build error: Failed to push image: unable to ping registry endpoint https://172.30.167.105:5000/v0/
+v2 ping attempt failed with error: Get https://172.30.167.105:5000/v2/: dial tcp 172.30.167.105:5000: getsockopt: no route to host
+ v1 ping attempt failed with error: Get https://172.30.167.105:5000/v1/_ping: dial tcp 172.30.167.105:5000: getsockopt: no route to host
+----
+
+
+== Success Criteria
+
+* The IP issues are resolved for __docker-registry__ so that it responds on **172.30.177.105**
+* The build of **lab7** in project __lab7__ is successful and deployed
+
+== What has been done
+
+This error comes from the image __lab7__ pointing to the wrong docker register. We can get the **docker-registry** IP as: 
+
+[source,bash]
+----
+# oc get service -n default
+NAME               CLUSTER-IP       EXTERNAL-IP   PORT(S)                   AGE
+docker-registry    172.30.177.105   <none>        5000/TCP                  3y
+kubernetes         172.30.0.1       <none>        443/TCP,53/UDP,53/TCP     3y
+registry-console   172.30.40.57     <none>        9000/TCP                  3y
+router             172.30.250.161   <none>        80/TCP,443/TCP,1936/TCP   3y
+----
+
+Then, we just need to add this IP into the **lab7** ImageStream:
+
+[source,bash]
+----
+# oc edit is lab7
+apiVersion: v1
+kind: ImageStream
+metadata:
+  annotations:
+    openshift.io/generated-by: OpenShiftNewApp
+  creationTimestamp: 2017-09-25T11:45:09Z
+  generation: 1
+  labels:
+    app: lab7
+  name: lab7
+  namespace: lab7
+  resourceVersion: "1800"
+  selfLink: /oapi/v1/namespaces/lab7/imagestreams/lab7
+  uid: fb8a1e51-a1e6-11e7-9eab-2cc260114a06
+spec: {}
+status:
+  dockerImageRepository: 172.30.167.105:5000/lab7/lab7
+----
+
+Finally, trigger back again the **build** process:
+
+[source,bash]
+----
+# oc start-build bc/lab7
+----
+
+== Bibliography
+
+* https://access.redhat.com/solutions/1527443
