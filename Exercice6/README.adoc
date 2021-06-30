@@ -132,7 +132,12 @@ node1.example.com openshift_node_group_name='node-config-compute'
 node2.example.com openshift_node_group_name='node-config-compute'
 ----
 
+Moreover, I have given specific **hawcular** permissions to **lab6**
 
+[source,bash]
+----
+# oc adm policy add-cluster-role-to-user hawkular-openshift-agent system:serviceaccount:default:hawkular-openshift-agent
+----
 
 
 == Bibliography
