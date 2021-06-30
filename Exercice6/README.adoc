@@ -1,0 +1,141 @@
+= Hack The Shift - Exercice VI
+Héctor Esteban Cabezos <hesteban@redhat.com>
+v1.0, 2021-06
+// Create TOC wherever needed
+:toc: macro
+:sectanchors:
+:sectnumlevels: 2
+:sectnums: 
+:source-highlighter: pygments
+:imagesdir: images
+// Start: Enable admonition icons
+ifdef::env-github[]
+:tip-caption: :bulb:
+:note-caption: :information_source:
+:important-caption: :heavy_exclamation_mark:
+:caution-caption: :fire:
+:warning-caption: :warning:
+endif::[]
+ifndef::env-github[]
+:icons: font
+endif::[]
+// End: Enable admonition icons
+
+// Create the Table of contents here
+toc::[]
+
+== Scenario
+
+The metrics for **lab6** in project **lab6** are not being gathered.
+The above has been verified with:
+
+[source,bash]
+----
+# oc login -u lab6 -p lab6
+# curl -s -k -H "Authorization: Bearer $(oc whoami -t)" -H "Hawkular-tenant: lab6" -X GET https://hawkular-metrics.traininglab.example.com/hawkular/metrics/gauges/data?tags=container_name:lab6\&buckets=1
+[{"start":1511853747454,"end":1511882547454,"empty":true}]
+----
+
+When running the diagnostics, the following error is reported:
+
+[source,bash]
+----
+# oadm diagnostics MetricsApiProxy
+[Note] Determining if client configuration exists for client/cluster diagnostics
+Info:  Successfully read a client config file at '/root/.kube/config'
+Info:  Using context for cluster-admin access: 'openshift-infra/master-example-com:8443/system:admin'
+
+[Note] Running diagnostic: MetricsApiProxy
+      Description: Check the integrated heapster metrics can be reached via the API proxy
+
+ERROR: [DClu4002 from diagnostic MetricsApiProxy@openshift/origin/pkg/diagnostics/cluster/metrics.go:74]
+      The heapster service exists in the openshift-infra project but does not have any endpoints at this time,
+      so it is not available for the Horizontal Pod Autoscaler to use as a source of metrics.
+
+[Note] Summary of diagnostics execution (version v3.5.5.31.24):
+[Note] Errors seen: 1
+----
+
+**NOTE**: If you notice any error in lab6 pods as shown below then rebuild it again:
+
+[source,bash]
+----
+[root@master ~]# oc get pods
+NAME           READY     STATUS             RESTARTS   AGE
+lab6-2-87h6l   0/1       ImagePullBackOff   0          27m
+
+[root@master ~]# oc get pods
+NAME           READY     STATUS         RESTARTS   AGE
+lab6-2-87h6l   0/1       ErrImagePull   0          26m
+
+[root@master ~]# oc project lab6
+Now using project "lab6" on server "https://master.example.com:8443".
+
+[root@master ~]# oc start-build lab6
+build "lab6-3" started
+
+[root@master ~]# oc get -o wide pods
+NAME           READY     STATUS      RESTARTS   AGE       IP            NODE
+lab6-3-build   0/1       Completed   0          7m        10.128.0.14   node1.example.com
+lab6-3-nv602   1/1       Running     0          3m        10.128.0.16   node1.example.com
+----
+
+== Success Criteria
+
+* Diagnostics tool for metrics completes with no errors or warnings.
+* Metrics are being gathered for pod **lab6** in project **lab6**.
+
+== What has been done
+
+By looking in `/var/log/messages` I can see errors in __metrics__ about **certificates**. +
+In order to replace the metrics certificates from `instructor-fcdc.rhpds.opentlc.com` do: 
+
+[source,bash]
+----
+ansible-playbook -i inventory  /usr/share/ansible/openshift-ansible/playbooks/byo/openshift-cluster/openshift-metrics.yml -e openshift_metrics_install_metrics=True -e openshift_metrics_hawkular_hostname=hawkular-metrics.traininglab.example.com
+----
+
+where `inventory` is:
+
+[source,bash]
+----
+# Create an OSEv3 group that contains the masters and nodes groups
+[OSEv3:children]
+masters
+nodes
+
+# Set variables common for all OSEv3 hosts
+[OSEv3:vars]
+# SSH user, this user should allow ssh based auth without requiring a password
+ansible_ssh_user=root
+
+# If ansible_ssh_user is not root, ansible_become must be set to true
+#ansible_become=true
+
+openshift_deployment_type=openshift-enterprise
+
+# uncomment the following to enable htpasswd authentication; defaults to DenyAllPasswordIdentityProvider
+#openshift_master_identity_providers=[{'name': 'htpasswd_auth', 'login': 'true', 'challenge': 'true', 'kind': 'HTPasswdPasswordIdentityProvider'}]
+
+# host group for masters
+[masters]
+master.example.com
+
+# host group for etcd
+[etcd]
+master.example.com
+
+# host group for nodes, includes region info
+[nodes]
+master.example.com openshift_node_group_name='node-config-master'
+node1.example.com openshift_node_group_name='node-config-compute'
+node2.example.com openshift_node_group_name='node-config-compute'
+----
+
+
+
+
+== Bibliography
+
+* https://bugzilla.redhat.com/show_bug.cgi?id=1498549
+* https://docs.openshift.com/container-platform/3.5/install_config/cluster_metrics.html#metrics-diagnostics
